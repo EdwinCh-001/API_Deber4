@@ -1,4 +1,5 @@
 import type { Favorite, CreateFavorite } from "@/types/favorites";
+import { debugLog, getErrorMessage } from "@/lib/debugLog";
 
 const API_URL = process.env.EXPO_PUBLIC_MOCKAPI_URL;
 const FAVORITES_PATH = "/favorites";
@@ -33,29 +34,47 @@ function normalizeFavorite(favorite: Favorite): Favorite {
 }
 
 export async function getFavorites(): Promise<Favorite[]> {
-    const response = await fetch(getUrl());
-    await ensureSuccessfulResponse(response, "No se pudieron cargar los favoritos");
+    debugLog("Consulta de favoritos: inicia getFavorites().");
+    try {
+        const response = await fetch(getUrl());
+        await ensureSuccessfulResponse(response, "No se pudieron cargar los favoritos");
 
-    const favorites: Favorite[] = await response.json();
+        const favorites: Favorite[] = await response.json();
 
-    return favorites.map(normalizeFavorite);
+        const normalizedFavorites = favorites.map(normalizeFavorite);
+        debugLog(`Consulta de favoritos exitosa: ${normalizedFavorites.length} favoritos.`);
+        return normalizedFavorites;
+    } catch (error) {
+        debugLog(`Consulta de favoritos falló: ${getErrorMessage(error)}`);
+        throw error;
+    }
 }
 
 export async function createFavorite(
     favorite: CreateFavorite
 ): Promise<Favorite> {
-    const response = await fetch(getUrl(), {
-        method: "POST",
-        headers: {
-            "Content-type": "application/json",
-        },
-        body: JSON.stringify(favorite),
-    });
+    debugLog("Creación de favorito: inicia envío de petición POST.");
+    try {
+        const response = await fetch(getUrl(), {
+            method: "POST",
+            headers: {
+                "Content-type": "application/json",
+            },
+            body: JSON.stringify(favorite),
+        });
 
-    await ensureSuccessfulResponse(response, "No se pudo crear el favorito");
+        debugLog(
+            `Creación de favorito: MockAPI recibió la petición (HTTP ${response.status}).`
+        );
+        await ensureSuccessfulResponse(response, "No se pudo crear el favorito");
 
-    const created: Favorite = await response.json();
-    return normalizeFavorite(created);
+        const created: Favorite = normalizeFavorite(await response.json());
+        debugLog("Creación de favorito: MockAPI respondió exitosamente.");
+        return created;
+    } catch (error) {
+        debugLog(`Creación de favorito falló: ${getErrorMessage(error)}`);
+        throw error;
+    }
 }
 
 export async function updateFavorite(
@@ -63,23 +82,33 @@ export async function updateFavorite(
     changes: Partial<CreateFavorite>
 ): Promise<Favorite> {
     const { id, ...existingFields } = favorite;
-    const response = await fetch(
-        `${getUrl()}/${encodeURIComponent(id)}`,
-        {
-            // MockAPI's resource update endpoint expects a complete PUT body.
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
+    debugLog("Edición de favorito: inicia envío de petición PUT.");
+    try {
+        const response = await fetch(
+            `${getUrl()}/${encodeURIComponent(id)}`,
+            {
+                // MockAPI's resource update endpoint expects a complete PUT body.
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    ...existingFields,
+                    ...changes,
+                }),
             },
-            body: JSON.stringify({
-                ...existingFields,
-                ...changes,
-            }),
-        }
-    );
+        );
 
-    await ensureSuccessfulResponse(response, "No se pudo editar el favorito");
+        debugLog(
+            `Edición de favorito: MockAPI recibió la petición (HTTP ${response.status}).`
+        );
+        await ensureSuccessfulResponse(response, "No se pudo editar el favorito");
 
-    const updated: Favorite = await response.json();
-    return normalizeFavorite(updated);
+        const updated = normalizeFavorite(await response.json());
+        debugLog("Edición de favorito: MockAPI respondió exitosamente.");
+        return updated;
+    } catch (error) {
+        debugLog(`Edición de favorito falló: ${getErrorMessage(error)}`);
+        throw error;
+    }
 }

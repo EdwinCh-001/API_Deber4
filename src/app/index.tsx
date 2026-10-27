@@ -26,6 +26,11 @@ import type { Character } from "@/types/characters";
 import type { Favorite } from "@/types/favorites";
 import { useState } from "react";
 import { queryTimes } from "@/queryTimes";
+import {
+  countWords,
+  getNoteValidationError,
+  MAX_NOTE_WORDS,
+} from "@/lib/noteValidation";
 
 export default function HomeScreen() {
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -56,6 +61,11 @@ export default function HomeScreen() {
 
   async function saveFavorite(character: Character) {
     const note = notes[character.id] ?? "";
+    const validationError = getNoteValidationError(note);
+    if (validationError) {
+      Alert.alert("Nota inválida", validationError);
+      return;
+    }
 
     try {
       await createMutation.mutateAsync({
@@ -78,6 +88,11 @@ export default function HomeScreen() {
 
   async function editFavorite(favorite: Favorite) {
     const note = notes[favorite.characterId] ?? favorite.note;
+    const validationError = getNoteValidationError(note);
+    if (validationError) {
+      Alert.alert("Nota inválida", validationError);
+      return;
+    }
 
     try {
       await updateMutation.mutateAsync({
@@ -167,6 +182,8 @@ export default function HomeScreen() {
         );
         const isEditingFavorite =
           favorite?.id != null && favorite.id === editingFavoriteId;
+        const noteDraft = notes[item.id] ?? favorite?.note ?? "";
+        const noteValidationError = getNoteValidationError(noteDraft);
 
         return (
           <View style={styles.card}>
@@ -185,24 +202,38 @@ export default function HomeScreen() {
                   Nota: {favorite.note || "Sin nota"}
                 </Text>
               ) : (
-                <TextInput
-                  style={styles.input}
-                  placeholder="Escribe una nota..."
-                  value={notes[item.id] ?? favorite?.note ?? ""}
-                  onChangeText={(text) =>
-                    setNotes((previous) => ({
-                      ...previous,
-                      [item.id]: text,
-                    }))
-                  }
-                />
+                <View style={styles.noteInputGroup}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Escribe una nota..."
+                    value={noteDraft}
+                    onChangeText={(text) =>
+                      setNotes((previous) => ({
+                        ...previous,
+                        [item.id]: text,
+                      }))
+                    }
+                  />
+                  <Text
+                    style={
+                      noteValidationError
+                        ? styles.validationError
+                        : styles.noteCounter
+                    }
+                  >
+                    {noteValidationError ??
+                      `${countWords(noteDraft)} / ${MAX_NOTE_WORDS} palabras`}
+                  </Text>
+                </View>
               )}
 
               {!favorite && (
                 <Pressable
                   style={styles.button}
                   onPress={() => saveFavorite(item)}
-                  disabled={createMutation.isPending}
+                  disabled={
+                    createMutation.isPending || noteValidationError !== null
+                  }
                 >
                   <Text style={styles.buttonText}>Añadir favorito</Text>
                 </Pressable>
@@ -215,7 +246,8 @@ export default function HomeScreen() {
                 accessibilityState={{
                   disabled:
                     updateMutation.isPending ||
-                    (editingFavoriteId !== null && !isEditingFavorite),
+                    (editingFavoriteId !== null && !isEditingFavorite) ||
+                    (isEditingFavorite && noteValidationError !== null),
                 }}
                 accessibilityLabel={
                   isEditingFavorite
@@ -242,7 +274,8 @@ export default function HomeScreen() {
                 }}
                 disabled={
                   updateMutation.isPending ||
-                  (editingFavoriteId !== null && !isEditingFavorite)
+                  (editingFavoriteId !== null && !isEditingFavorite) ||
+                  (isEditingFavorite && noteValidationError !== null)
                 }
               >
                 <Text style={styles.editIconText}>
@@ -328,6 +361,9 @@ const styles = StyleSheet.create({
     padding: 8,
     backgroundColor: "#fff",
   },
+  noteInputGroup: {
+    gap: 4,
+  },
   button: {
     backgroundColor: "#2563eb",
     padding: 9,
@@ -336,6 +372,14 @@ const styles = StyleSheet.create({
   },
   note: {
     color: "#334155",
+  },
+  noteCounter: {
+    color: "#64748b",
+    fontSize: 12,
+  },
+  validationError: {
+    color: "#b91c1c",
+    fontSize: 12,
   },
   editIcon: {
     position: "absolute",

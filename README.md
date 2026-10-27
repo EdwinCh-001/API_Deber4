@@ -43,6 +43,8 @@ src/
   hooks/
     useFavorites.ts     # Consultas y mutaciones de favoritos
   lib/
+    debugLog.ts         # Logs de depuración con timestamp UTC
+    noteValidation.ts   # Validación de notas entre 1 y 60 palabras
     onlineManager.ts    # Estado de conexión de Expo Network
     queryClient.ts      # QueryClient y mutation defaults reanudables
   queryKeys.ts          # Jerarquía única de claves
@@ -138,3 +140,17 @@ las pausadas offline de las que se están enviando.
 El indicador comunica el estado real de la mutación, pero no actualiza la lista
 de favoritos de forma optimista: la lista se reconcilia con la respuesta de
 MockAPI mediante las invalidaciones al completar la operación.
+
+### Logs para la demostración
+
+`debugLog.ts` imprime mensajes con timestamp ISO UTC y el formato
+`[2026-10-27T10:15:32.123Z] DESCRIPCIÓN`. Los logs se limitan a inicio del
+cliente, restauración de caché, cambios efectivos de red, ciclo de consultas,
+mutaciones, reanudaciones e invalidaciones. No se imprimen las notas ni el
+contenido de los registros.
+
+### Validación de notas
+
+Las notas de favoritos son obligatorias y admiten hasta 60 palabras. La
+validación ocurre antes de crear o editar; la pantalla muestra el recuento y
+deshabilita guardar mientras la nota esté vacía o supere el límite.

@@ -6,6 +6,7 @@ import {
 import { queryKeys } from "@/queryKeys";
 import { queryTimes } from "@/queryTimes";
 import type { CreateFavorite, Favorite } from "@/types/favorites";
+import { debugLog, getErrorMessage } from "@/lib/debugLog";
 
 type UpdateFavoriteVariables = {
   favorite: Favorite;
@@ -13,6 +14,7 @@ type UpdateFavoriteVariables = {
 };
 
 export function createQueryClient() {
+  debugLog("Inicio de la aplicación: creando QueryClient.");
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -43,4 +45,43 @@ export function createQueryClient() {
   });
 
   return queryClient;
+}
+
+export async function resumePausedMutations(
+  queryClient: QueryClient,
+  reason: string
+): Promise<void> {
+  const pendingMutations = queryClient
+    .getMutationCache()
+    .getAll()
+    .filter((mutation) => mutation.state.status === "pending");
+  const pausedMutations = pendingMutations.filter(
+    (mutation) => mutation.state.isPaused
+  );
+
+  debugLog(
+    `Reanudando mutaciones (${reason}): ${pendingMutations.length} pendiente(s), ${pausedMutations.length} pausada(s).`
+  );
+
+  for (const mutation of pausedMutations) {
+    const mutationKey = mutation.options.mutationKey;
+    if (JSON.stringify(mutationKey) === JSON.stringify(queryKeys.mutations.createFavorite)) {
+      debugLog("Creación de favorito pausada: se reanuda automáticamente.");
+    } else if (
+      JSON.stringify(mutationKey) ===
+      JSON.stringify(queryKeys.mutations.updateFavorite)
+    ) {
+      debugLog("Edición de favorito pausada: se reanuda automáticamente.");
+    }
+  }
+
+  try {
+    await queryClient.resumePausedMutations();
+    debugLog("Finalizó la reanudación de mutaciones pausadas.");
+  } catch (error) {
+    debugLog(
+      `Falló la reanudación de mutaciones: ${getErrorMessage(error)}`
+    );
+    throw error;
+  }
 }
