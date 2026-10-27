@@ -1,98 +1,365 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  Pressable,
+  Alert,
+} from "react-native";
+import {
+  useMutationState,
+  useQuery,
+  useIsRestoring,
+} from "@tanstack/react-query";
+import { getCharacters } from "@/api/characters";
+import { queryKeys } from "@/queryKeys";
+import {
+  useFavorites,
+  useCreateFavorite,
+  useUpdateFavorite,
+} from "@/hooks/useFavorites";
+import type { Character } from "@/types/characters";
+import type { Favorite } from "@/types/favorites";
+import { useState } from "react";
+import { queryTimes } from "@/queryTimes";
 
 export default function HomeScreen() {
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [editingFavoriteId, setEditingFavoriteId] = useState<string | null>(
+    null
+  );
+  const isRestoring = useIsRestoring();
+  const pendingMutations = useMutationState({
+    filters: { status: "pending" },
+    select: (mutation) => mutation.state.isPaused,
+  });
+
+  const { data, isPending, isError, isFetching, error } = useQuery({
+    queryKey: queryKeys.characters.list(),
+    queryFn: getCharacters,
+    staleTime: queryTimes.publicApi.staleTime,
+    gcTime: queryTimes.publicApi.gcTime,
+  });
+
+  const {
+    data: favorites,
+    isPending: favoritesPending,
+    isError: favoritesError,
+  } = useFavorites();
+
+  const createMutation = useCreateFavorite();
+  const updateMutation = useUpdateFavorite();
+
+  async function saveFavorite(character: Character) {
+    const note = notes[character.id] ?? "";
+
+    try {
+      await createMutation.mutateAsync({
+        characterId: character.id,
+        characterName: character.name,
+        note,
+        isFavorite: true,
+      });
+
+      Alert.alert("¡Listo!", "El favorito se guardó correctamente.");
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el favorito."
+      );
+    }
+  }
+
+  async function editFavorite(favorite: Favorite) {
+    const note = notes[favorite.characterId] ?? favorite.note;
+
+    try {
+      await updateMutation.mutateAsync({
+        favorite,
+        changes: { note },
+      });
+
+      setEditingFavoriteId(null);
+      Alert.alert("¡Listo!", "Tu nota se actualizó.");
+    } catch (error) {
+      Alert.alert(
+        "Error",
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar la nota."
+      );
+    }
+  }
+
+  if (isPending && !data) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text>
+          {isRestoring ? "Restaurando datos guardados..." : "Cargando personajes..."}
+        </Text>
+      </View>
+    );
+  }
+
+  if (isError && !data) {
+    return (
+      <View style={styles.center}>
+        <Text>Error: {error.message}</Text>
+      </View>
+    );
+  }
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <FlatList
+      style={styles.list}
+      contentContainerStyle={styles.content}
+      data={data}
+      keyExtractor={(item) => String(item.id)}
+      ListHeaderComponent={
+        <View style={styles.header}>
+          <Text style={styles.title}>Rick and Morty</Text>
+          <Text style={styles.subtitle}>
+            Personajes: {data.length}
+          </Text>
+          {isFetching && (
+            <Text style={styles.status}>
+              Actualizando catálogo en segundo plano...
+            </Text>
+          )}
+          {isError && (
+            <Text style={styles.error}>
+              No se pudo actualizar; se muestran los datos guardados.
+            </Text>
+          )}
+          <Text style={styles.sectionTitle}>
+            Mis favoritos guardados
+          </Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+          {favoritesPending && <Text>Cargando favoritos...</Text>}
+          {favoritesError && (
+            <Text>No se pudieron cargar los favoritos.</Text>
+          )}
+          {!favoritesPending && !favoritesError && (
+            <Text>
+              Tienes {favorites?.filter((f) => f.isFavorite).length ?? 0}{" "}
+              favoritos
+            </Text>
+          )}
+          {pendingMutations.length > 0 && (
+            <Text style={styles.pending}>
+              {pendingMutations.some(Boolean)
+                ? `${pendingMutations.length} cambio(s) pendiente(s): se enviarán al recuperar la conexión.`
+                : "Guardando cambios..."}
+            </Text>
+          )}
+        </View>
+      }
+      renderItem={({ item }) => {
+        const favorite = favorites?.find(
+          (f) => f.characterId === item.id
+        );
+        const isEditingFavorite =
+          favorite?.id != null && favorite.id === editingFavoriteId;
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        return (
+          <View style={styles.card}>
+            <Image
+              source={{ uri: item.image }}
+              style={styles.image}
+            />
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+            <View style={styles.info}>
+              <Text style={styles.name}>{item.name}</Text>
+              <Text>Especie: {item.species}</Text>
+              <Text>Estado: {item.status}</Text>
+
+              {favorite && !isEditingFavorite ? (
+                <Text style={styles.note}>
+                  Nota: {favorite.note || "Sin nota"}
+                </Text>
+              ) : (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Escribe una nota..."
+                  value={notes[item.id] ?? favorite?.note ?? ""}
+                  onChangeText={(text) =>
+                    setNotes((previous) => ({
+                      ...previous,
+                      [item.id]: text,
+                    }))
+                  }
+                />
+              )}
+
+              {!favorite && (
+                <Pressable
+                  style={styles.button}
+                  onPress={() => saveFavorite(item)}
+                  disabled={createMutation.isPending}
+                >
+                  <Text style={styles.buttonText}>Añadir favorito</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {favorite?.id && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled:
+                    updateMutation.isPending ||
+                    (editingFavoriteId !== null && !isEditingFavorite),
+                }}
+                accessibilityLabel={
+                  isEditingFavorite
+                    ? `Guardar nota de ${favorite.characterName}`
+                    : `Editar favorito ${favorite.characterName}`
+                }
+                style={[
+                  styles.editIcon,
+                  editingFavoriteId !== null &&
+                    !isEditingFavorite &&
+                    styles.editIconDisabled,
+                ]}
+                onPress={() => {
+                  if (isEditingFavorite) {
+                    void editFavorite(favorite);
+                    return;
+                  }
+
+                  setNotes((previous) => ({
+                    ...previous,
+                    [favorite.characterId]: favorite.note,
+                  }));
+                  setEditingFavoriteId(favorite.id);
+                }}
+                disabled={
+                  updateMutation.isPending ||
+                  (editingFavoriteId !== null && !isEditingFavorite)
+                }
+              >
+                <Text style={styles.editIconText}>
+                  {isEditingFavorite ? "✓" : "✎"}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        );
+      }}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  list: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#f3f4f6",
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  content: {
+    padding: 16,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  center: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    padding: 24,
+  },
+  header: {
+    marginBottom: 16,
+    gap: 8,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 26,
+    fontWeight: "bold",
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    color: "#555",
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 8,
+  },
+  pending: {
+    color: "#b45309",
+    fontWeight: "600",
+  },
+  status: {
+    color: "#475569",
+  },
+  error: {
+    color: "#b91c1c",
+  },
+  card: {
+    position: "relative",
+    flexDirection: "row",
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  image: {
+    width: 110,
+    height: 140,
+  },
+  info: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 10,
+    paddingRight: 44,
+    gap: 6,
+  },
+  name: {
+    fontSize: 17,
+    fontWeight: "bold",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 6,
+    padding: 8,
+    backgroundColor: "#fff",
+  },
+  button: {
+    backgroundColor: "#2563eb",
+    padding: 9,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  note: {
+    color: "#334155",
+  },
+  editIcon: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  editIconDisabled: {
+    opacity: 0.4,
+  },
+  editIconText: {
+    color: "#1e293b",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    textAlign: "center",
   },
 });
