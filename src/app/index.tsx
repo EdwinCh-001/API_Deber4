@@ -31,6 +31,8 @@ import {
   getNoteValidationError,
   MAX_NOTE_WORDS,
 } from "@/lib/noteValidation";
+import { colors } from "@/theme";
+import { debugLog } from "@/lib/debugLog";
 
 export default function HomeScreen() {
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -58,8 +60,13 @@ export default function HomeScreen() {
 
   const createMutation = useCreateFavorite();
   const updateMutation = useUpdateFavorite();
+  const favoriteCharacters =
+    favorites?.filter((favorite) => favorite.isFavorite) ?? [];
 
   async function saveFavorite(character: Character) {
+    debugLog(
+      `Interfaz: inicia guardado de favorito para ${character.name} (personaje ${character.id}).`
+    );
     const note = notes[character.id] ?? "";
     const validationError = getNoteValidationError(note);
     if (validationError) {
@@ -68,6 +75,9 @@ export default function HomeScreen() {
     }
 
     try {
+      debugLog(
+        `Interfaz: llamando createMutation.mutateAsync() para ${character.name} (personaje ${character.id}).`
+      );
       await createMutation.mutateAsync({
         characterId: character.id,
         characterName: character.name,
@@ -87,6 +97,9 @@ export default function HomeScreen() {
   }
 
   async function editFavorite(favorite: Favorite) {
+    debugLog(
+      `Interfaz: inicia guardado de edición para ${favorite.characterName} (registro ${favorite.id}).`
+    );
     const note = notes[favorite.characterId] ?? favorite.note;
     const validationError = getNoteValidationError(note);
     if (validationError) {
@@ -95,6 +108,9 @@ export default function HomeScreen() {
     }
 
     try {
+      debugLog(
+        `Interfaz: llamando updateMutation.mutateAsync() para ${favorite.characterName} (registro ${favorite.id}).`
+      );
       await updateMutation.mutateAsync({
         favorite,
         changes: { note },
@@ -115,8 +131,8 @@ export default function HomeScreen() {
   if (isPending && !data) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text>
+        <ActivityIndicator size="large" color={colors.portalBlue} />
+        <Text style={styles.secondaryText}>
           {isRestoring ? "Restaurando datos guardados..." : "Cargando personajes..."}
         </Text>
       </View>
@@ -126,7 +142,7 @@ export default function HomeScreen() {
   if (isError && !data) {
     return (
       <View style={styles.center}>
-        <Text>Error: {error.message}</Text>
+        <Text style={styles.error}>Error: {error.message}</Text>
       </View>
     );
   }
@@ -139,41 +155,65 @@ export default function HomeScreen() {
       keyExtractor={(item) => String(item.id)}
       ListHeaderComponent={
         <View style={styles.header}>
+          <Text style={styles.eyebrow}>UNIVERSO MULTIDIMENSIONAL</Text>
           <Text style={styles.title}>Rick and Morty</Text>
-          <Text style={styles.subtitle}>
-            Personajes: {data.length}
-          </Text>
+          <Text style={styles.subtitle}>Explora los personajes de la serie</Text>
+          <View style={styles.catalogBadge}>
+            <Text style={styles.catalogBadgeText}>
+              {data.length} PERSONAJES
+            </Text>
+          </View>
           {isFetching && (
-            <Text style={styles.status}>
+            <Text style={styles.statusBadge}>
               Actualizando catálogo en segundo plano...
             </Text>
           )}
           {isError && (
-            <Text style={styles.error}>
+            <Text style={styles.errorBadge}>
               No se pudo actualizar; se muestran los datos guardados.
             </Text>
           )}
-          <Text style={styles.sectionTitle}>
-            Mis favoritos guardados
-          </Text>
-
-          {favoritesPending && <Text>Cargando favoritos...</Text>}
-          {favoritesError && (
-            <Text>No se pudieron cargar los favoritos.</Text>
-          )}
-          {!favoritesPending && !favoritesError && (
-            <Text>
-              Tienes {favorites?.filter((f) => f.isFavorite).length ?? 0}{" "}
-              favoritos
-            </Text>
-          )}
-          {pendingMutations.length > 0 && (
-            <Text style={styles.pending}>
-              {pendingMutations.some(Boolean)
-                ? `${pendingMutations.length} cambio(s) pendiente(s): se enviarán al recuperar la conexión.`
-                : "Guardando cambios..."}
-            </Text>
-          )}
+          <View style={styles.favoritesSummary}>
+            <View style={styles.favoritesHeading}>
+              <Text style={styles.sectionTitle}>Mis favoritos</Text>
+              {!favoritesPending && !favoritesError && (
+                <Text style={styles.favoriteCount}>
+                  {favoriteCharacters.length}
+                </Text>
+              )}
+            </View>
+            {favoritesPending && (
+              <Text style={styles.secondaryText}>Cargando favoritos...</Text>
+            )}
+            {favoritesError && (
+              <Text style={styles.error}>No se pudieron cargar los favoritos.</Text>
+            )}
+            {!favoritesPending && !favoritesError && (
+              favoriteCharacters.length > 0 ? (
+                <View style={styles.favoriteList}>
+                  {favoriteCharacters.map((favorite) => (
+                    <View key={favorite.id} style={styles.favoriteRow}>
+                      <View style={styles.favoriteDot} />
+                      <Text style={styles.favoriteName}>
+                        {favorite.characterName}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.secondaryText}>
+                  Aún no tienes personajes favoritos.
+                </Text>
+              )
+            )}
+            {pendingMutations.length > 0 && (
+              <Text style={styles.pending}>
+                {pendingMutations.some(Boolean)
+                  ? `${pendingMutations.length} cambio(s) pendiente(s): se enviarán al recuperar la conexión.`
+                  : "Guardando cambios..."}
+              </Text>
+            )}
+          </View>
         </View>
       }
       renderItem={({ item }) => {
@@ -194,8 +234,8 @@ export default function HomeScreen() {
 
             <View style={styles.info}>
               <Text style={styles.name}>{item.name}</Text>
-              <Text>Especie: {item.species}</Text>
-              <Text>Estado: {item.status}</Text>
+              <Text style={styles.metadata}>Especie · {item.species}</Text>
+              <Text style={styles.metadata}>Estado · {item.status}</Text>
 
               {favorite && !isEditingFavorite ? (
                 <Text style={styles.note}>
@@ -206,6 +246,8 @@ export default function HomeScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Escribe una nota..."
+                    placeholderTextColor={colors.textSecondary}
+                    selectionColor={colors.portalBlue}
                     value={noteDraft}
                     onChangeText={(text) =>
                       setNotes((previous) => ({
@@ -229,8 +271,16 @@ export default function HomeScreen() {
 
               {!favorite && (
                 <Pressable
-                  style={styles.button}
-                  onPress={() => saveFavorite(item)}
+                  style={({ pressed }) => [
+                    styles.button,
+                    pressed && styles.buttonPressed,
+                  ]}
+                  onPress={() => {
+                    debugLog(
+                      `Usuario presionó Añadir favorito para ${item.name} (personaje ${item.id}).`
+                    );
+                    void saveFavorite(item);
+                  }}
                   disabled={
                     createMutation.isPending || noteValidationError !== null
                   }
@@ -254,18 +304,25 @@ export default function HomeScreen() {
                     ? `Guardar nota de ${favorite.characterName}`
                     : `Editar favorito ${favorite.characterName}`
                 }
-                style={[
+                style={({ pressed }) => [
                   styles.editIcon,
+                  pressed && styles.editIconPressed,
                   editingFavoriteId !== null &&
                     !isEditingFavorite &&
                     styles.editIconDisabled,
                 ]}
                 onPress={() => {
                   if (isEditingFavorite) {
+                    debugLog(
+                      `Usuario presionó Guardar edición de favorito para ${favorite.characterName} (registro ${favorite.id}).`
+                    );
                     void editFavorite(favorite);
                     return;
                   }
 
+                  debugLog(
+                    `Usuario abrió la edición del favorito ${favorite.characterName} (registro ${favorite.id}).`
+                  );
                   setNotes((previous) => ({
                     ...previous,
                     [favorite.characterId]: favorite.note,
@@ -293,102 +350,224 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   list: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.background,
   },
   content: {
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingTop: 112,
+    paddingBottom: 32,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 12,
-    padding: 24,
+    gap: 14,
+    padding: 28,
+    backgroundColor: colors.background,
   },
   header: {
-    marginBottom: 16,
-    gap: 8,
+    marginBottom: 24,
+    gap: 10,
+  },
+  eyebrow: {
+    color: colors.portalGreen,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 2,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "bold",
+    color: colors.textPrimary,
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 0.6,
   },
   subtitle: {
-    color: "#555",
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  catalogBadge: {
+    alignSelf: "flex-start",
+    marginTop: 2,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: "rgba(0, 181, 216, 0.09)",
+  },
+  catalogBadgeText: {
+    color: colors.portalBlue,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: colors.surfaceRaised,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  errorBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "rgba(248, 113, 113, 0.12)",
+    color: colors.error,
+    fontSize: 12,
+  },
+  favoritesSummary: {
+    marginTop: 12,
+    padding: 16,
+    gap: 7,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  favoritesHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 8,
+    color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  favoriteCount: {
+    minWidth: 30,
+    overflow: "hidden",
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: "rgba(166, 226, 46, 0.12)",
+    color: colors.portalGreen,
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  favoriteList: {
+    gap: 9,
+    marginTop: 3,
+  },
+  favoriteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    minHeight: 24,
+  },
+  favoriteDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.portalGreen,
+  },
+  favoriteName: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
   },
   pending: {
-    color: "#b45309",
+    color: colors.warning,
     fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 3,
   },
-  status: {
-    color: "#475569",
+  secondaryText: {
+    color: colors.textSecondary,
+    marginLeft: 0,
   },
   error: {
-    color: "#b91c1c",
+    color: colors.error,
+    textAlign: "center",
   },
   card: {
     position: "relative",
     flexDirection: "row",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    marginBottom: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
     overflow: "hidden",
   },
   image: {
-    width: 110,
-    height: 140,
+    width: 112,
+    height: 148,
   },
   info: {
     flex: 1,
     justifyContent: "center",
-    padding: 10,
-    paddingRight: 44,
-    gap: 6,
+    padding: 14,
+    paddingRight: 48,
+    gap: 7,
   },
   name: {
+    color: colors.portalBlue,
     fontSize: 17,
-    fontWeight: "bold",
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  metadata: {
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 6,
-    padding: 8,
-    backgroundColor: "#fff",
+    borderColor: colors.borderStrong,
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    color: colors.textPrimary,
+    backgroundColor: colors.background,
+    fontSize: 13,
   },
   noteInputGroup: {
-    gap: 4,
+    gap: 6,
   },
   button: {
-    backgroundColor: "#2563eb",
-    padding: 9,
-    borderRadius: 6,
+    backgroundColor: colors.portalBlue,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     alignItems: "center",
   },
+  buttonPressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.98 }],
+  },
   note: {
-    color: "#334155",
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
   },
   noteCounter: {
-    color: "#64748b",
+    color: colors.textSecondary,
     fontSize: 12,
   },
   validationError: {
-    color: "#b91c1c",
+    color: colors.error,
     fontSize: 12,
   },
   editIcon: {
     position: "absolute",
     top: 8,
     right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#e2e8f0",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
@@ -396,13 +575,17 @@ const styles = StyleSheet.create({
   editIconDisabled: {
     opacity: 0.4,
   },
+  editIconPressed: {
+    backgroundColor: "#202C38",
+    transform: [{ scale: 0.95 }],
+  },
   editIconText: {
-    color: "#1e293b",
+    color: colors.portalGreen,
     fontSize: 20,
     fontWeight: "700",
   },
   buttonText: {
-    color: "#fff",
+    color: colors.background,
     fontWeight: "600",
     textAlign: "center",
   },

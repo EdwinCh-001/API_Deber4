@@ -53,7 +53,9 @@ export async function getFavorites(): Promise<Favorite[]> {
 export async function createFavorite(
     favorite: CreateFavorite
 ): Promise<Favorite> {
-    debugLog("Creación de favorito: inicia envío de petición POST.");
+    debugLog(
+        `API createFavorite(): inicio de petición POST para ${favorite.characterName} (personaje ${favorite.characterId}).`
+    );
     try {
         const response = await fetch(getUrl(), {
             method: "POST",
@@ -81,8 +83,10 @@ export async function updateFavorite(
     favorite: Favorite,
     changes: Partial<CreateFavorite>
 ): Promise<Favorite> {
+    debugLog(
+        `API updateFavorite(): inicio de petición PUT para ${favorite.characterName} (registro ${favorite.id}).`
+    );
     const { id, ...existingFields } = favorite;
-    debugLog("Edición de favorito: inicia envío de petición PUT.");
     try {
         const response = await fetch(
             `${getUrl()}/${encodeURIComponent(id)}`,

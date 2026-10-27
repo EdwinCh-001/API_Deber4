@@ -1,5 +1,6 @@
 
 import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,6 +11,7 @@ import {
 } from "@/lib/queryClient";
 import { configureOnlineManager } from "@/lib/onlineManager";
 import { debugLog } from "@/lib/debugLog";
+import { colors } from "@/theme";
 
 function CacheRestorationLogger() {
   useEffect(() => {
@@ -47,11 +49,33 @@ export default function RootLayout() {
       }}
     >
       <CacheRestorationLogger />
-      <Stack>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen
           name="index"
-          options={{ title: "Personajes" }}
-        />
+          options={{
+            title: "Rick and Morty",
+            headerTransparent: true,
+            headerTintColor: colors.portalGreen,
+            headerTitleStyle: {
+              color: colors.portalBlue,
+              fontWeight: "700",
+            },
+            headerShadowVisible: false,
+          }}
+        >
+          <Stack.Header
+            blurEffect="systemMaterial"
+            style={{
+              backgroundColor: "rgba(18, 24, 32, 0.86)",
+              shadowColor: "transparent",
+            }}
+          />
+        </Stack.Screen>
       </Stack>
     </PersistQueryClientProvider>
   );

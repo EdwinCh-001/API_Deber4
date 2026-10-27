@@ -43,7 +43,7 @@ src/
   hooks/
     useFavorites.ts     # Consultas y mutaciones de favoritos
   lib/
-    debugLog.ts         # Logs de depuración con timestamp UTC
+    debugLog.ts         # Logs de depuración con timestamp ISO UTC
     noteValidation.ts   # Validación de notas entre 1 y 60 palabras
     onlineManager.ts    # Estado de conexión de Expo Network
     queryClient.ts      # QueryClient y mutation defaults reanudables
@@ -143,7 +143,7 @@ MockAPI mediante las invalidaciones al completar la operación.
 
 ### Logs para la demostración
 
-`debugLog.ts` imprime mensajes con timestamp ISO UTC y el formato
+`debugLog.ts` imprime mensajes con timestamp ISO UTC, por ejemplo
 `[2026-10-27T10:15:32.123Z] DESCRIPCIÓN`. Los logs se limitan a inicio del
 cliente, restauración de caché, cambios efectivos de red, ciclo de consultas,
 mutaciones, reanudaciones e invalidaciones. No se imprimen las notas ni el

@@ -29,21 +29,30 @@ export function useCreateFavorite() {
     return useMutation({
         mutationKey: queryKeys.mutations.createFavorite,
         mutationFn: createFavorite,
-        onMutate: () => {
-            debugLog("Creación de favorito: mutación iniciada.");
+        onMutate: (variables) => {
+            debugLog(
+                `TanStack Query onMutate: creación de ${variables.characterName} (personaje ${variables.characterId}).`
+            );
             if (!onlineManager.isOnline()) {
                 debugLog("Creación de favorito: pendiente por falta de conexión.");
             }
         },
-        onSuccess: async () => {
+        onSuccess: async (created, variables) => {
+            debugLog("TanStack Query onSuccess: creación de favorito completada.");
             debugLog(
-                `Invalidación tras crear favorito: ${JSON.stringify(queryKeys.favorites.lists())}.`
+                `Favorito guardado correctamente: ${created.characterName} (personaje ${variables.characterId}).`
+            );
+            debugLog(
+                `Ejecutando invalidateQueries() tras crear favorito: ${JSON.stringify(queryKeys.favorites.lists())}.`
             );
             await queryClient.invalidateQueries({
                 queryKey: queryKeys.favorites.lists(),
             });
         },
-        onError: (error) => {
+        onError: (error, variables) => {
+            debugLog(
+                `TanStack Query onError: creación de ${variables.characterName} (personaje ${variables.characterId}).`
+            );
             debugLog(`Mutación de creación falló: ${getErrorMessage(error)}`);
         },
     });
@@ -62,15 +71,21 @@ export function useUpdateFavorite() {
       changes: Partial<CreateFavorite>;
     }) => updateFavorite(favorite, changes),
 
-    onMutate: () => {
-      debugLog("Edición de favorito: mutación iniciada.");
+    onMutate: (variables) => {
+      debugLog(
+        `TanStack Query onMutate: edición de ${variables.favorite.characterName} (registro ${variables.favorite.id}).`
+      );
       if (!onlineManager.isOnline()) {
         debugLog("Edición de favorito: pendiente por falta de conexión.");
       }
     },
     onSuccess: async (updated: Favorite) => {
+      debugLog("TanStack Query onSuccess: edición de favorito completada.");
       debugLog(
-        `Invalidación tras editar favorito: ${JSON.stringify(queryKeys.favorites.lists())}.`
+        `Favorito editado correctamente: ${updated.characterName} (registro ${updated.id}).`
+      );
+      debugLog(
+        `Ejecutando invalidateQueries() tras editar favorito: ${JSON.stringify(queryKeys.favorites.lists())}.`
       );
       await queryClient.invalidateQueries({
         queryKey: queryKeys.favorites.lists(),
@@ -78,14 +93,17 @@ export function useUpdateFavorite() {
 
       if (updated.id) {
         debugLog(
-          `Invalidación tras editar favorito: ${JSON.stringify(queryKeys.favorites.detail(updated.id))}.`
+          `Ejecutando invalidateQueries() del detalle actualizado: ${JSON.stringify(queryKeys.favorites.detail(updated.id))}.`
         );
         await queryClient.invalidateQueries({
           queryKey: queryKeys.favorites.detail(updated.id),
         });
       }
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      debugLog(
+        `TanStack Query onError: edición de ${variables.favorite.characterName} (registro ${variables.favorite.id}).`
+      );
       debugLog(`Mutación de edición falló: ${getErrorMessage(error)}`);
     },
   });
